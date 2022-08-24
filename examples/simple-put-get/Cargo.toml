@@ -12,5 +12,5 @@ tokio = { git = "https://github.com/WasmEdge/tokio.git", branch = "wasmedge", fe
     "time",
     "macros",
 ] }
-wasmedge-anna-driver = { path = "../../" }
-# wasmedge-anna-driver = { git = "https://github.com/WasmEdge/wasmedge-db-drivers" }
+wasmedge-anna-client = { path = "../../" }
+# wasmedge-anna-client = { git = "https://github.com/WasmEdge/wasmedge-db-drivers" }

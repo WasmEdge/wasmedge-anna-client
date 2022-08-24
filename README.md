@@ -1,6 +1,6 @@
-# wasmedge-anna-driver
+# wasmedge-anna-client
 
-**wasmedge-anna-driver** is a Rust client for [anna-rs] based on [Tokio for WasmEdge](https://github.com/WasmEdge/tokio/tree/wasmedge). It communicates with Anna routing nodes and KVS nodes via vanilla TCP connections instead of Zenoh.
+**wasmedge-anna-client** is a Rust client for [anna-rs] based on [Tokio for WasmEdge](https://github.com/WasmEdge/tokio/tree/wasmedge). It communicates with Anna routing nodes and KVS nodes via vanilla TCP connections instead of Zenoh.
 
 [anna-rs]: https://github.com/essa-project/anna-rs
 
@@ -8,7 +8,7 @@
 
 ```rust
 use std::time::Duration;
-use wasmedge_anna_driver::{Client, ClientConfig};
+use wasmedge_anna_client::{Client, ClientConfig};
 
 let mut client = Client::new(ClientConfig {
     routing_ip: "127.0.0.1".parse().unwrap(),
@@ -41,10 +41,10 @@ $ # in another shell
 $ ANNA_PUBLIC_IP=127.0.0.1 cargo run --bin kvs -- config.yml
 ```
 
-Then, build and run the example app of **wasmedge-anna-driver**:
+Then, build and run the example app of **wasmedge-anna-client**:
 
 ```sh
-$ cd wasmedge-db-drivers/anna/examples/simple-put-get
+$ cd examples/simple-put-get
 $ cargo build --target wasm32-wasi
 $ /path/to/wasmedge --dir .:. target/wasm32-wasi/debug/simple-put-get.wasm
 ```

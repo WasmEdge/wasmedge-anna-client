@@ -566,7 +566,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6598dd0bd3c7d51095ff6531a5b23e02acdc81804e30d8f07afb77b7215a140a"
 
 [[package]]
-name = "wasmedge-anna-driver"
+name = "wasmedge-anna-client"
 version = "0.1.0"
 dependencies = [
  "anna-api",
