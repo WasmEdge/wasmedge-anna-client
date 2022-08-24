@@ -1,5 +1,5 @@
 [package]
-name = "simple-put-get"
+name = "example"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
@@ -12,5 +12,4 @@ tokio = { git = "https://github.com/WasmEdge/tokio.git", branch = "wasmedge", fe
     "time",
     "macros",
 ] }
-wasmedge-anna-client = { path = "../../" }
-# wasmedge-anna-client = { git = "https://github.com/WasmEdge/wasmedge-db-drivers" }
+wasmedge-anna-client = { path = "../" }

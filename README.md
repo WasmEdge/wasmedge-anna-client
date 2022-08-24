@@ -44,9 +44,9 @@ $ ANNA_PUBLIC_IP=127.0.0.1 cargo run --bin kvs -- config.yml
 Then, build and run the example app of **wasmedge-anna-client**:
 
 ```sh
-$ cd examples/simple-put-get
+$ cd example
 $ cargo build --target wasm32-wasi
-$ /path/to/wasmedge --dir .:. target/wasm32-wasi/debug/simple-put-get.wasm
+$ /path/to/wasmedge --dir .:. target/wasm32-wasi/debug/example.wasm
 ```
 
 ## Attribution
