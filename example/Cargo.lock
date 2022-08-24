@@ -103,6 +103,8 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "eyre",
+ "fern",
+ "log",
  "tokio",
  "wasmedge-anna-client",
 ]
@@ -115,6 +117,15 @@ checksum = "4c2b6b5a29c02cdc822728b7d7b8ae1bab3e3b05d44522770ddd49722eeac7eb"
 dependencies = [
  "indenter",
  "once_cell",
+]
+
+[[package]]
+name = "fern"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3bdd7b0849075e79ee9a1836df22c717d1eba30451796fdc631b04565dd11e2a"
+dependencies = [
+ "log",
 ]
 
 [[package]]

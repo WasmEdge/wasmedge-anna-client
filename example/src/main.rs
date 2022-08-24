@@ -4,6 +4,8 @@ use wasmedge_anna_client::{Client, ClientConfig};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> eyre::Result<()> {
+    set_up_logger()?;
+
     let mut client = Client::new(ClientConfig {
         routing_ip: "127.0.0.1".parse().unwrap(),
         routing_port_base: 12340,
@@ -24,5 +26,22 @@ async fn main() -> eyre::Result<()> {
     let value = String::from_utf8(bytes)?;
     println!("Successfully GET `time`: {}", value);
 
+    Ok(())
+}
+
+fn set_up_logger() -> Result<(), fern::InitError> {
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}] {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.target(),
+                record.level(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Info)
+        .chain(std::io::stdout())
+        .apply()?;
     Ok(())
 }

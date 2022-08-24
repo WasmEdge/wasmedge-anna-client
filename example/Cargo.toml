@@ -5,6 +5,8 @@ edition = "2021"
 license = "Apache-2.0"
 
 [dependencies]
+fern = "0.6.0"
+log = "0.4.14"
 eyre = "0.6.5"
 chrono = { version = "0.4.19", features = ["serde"] }
 tokio = { git = "https://github.com/WasmEdge/tokio.git", branch = "wasmedge", features = [

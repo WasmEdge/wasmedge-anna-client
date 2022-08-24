@@ -49,6 +49,8 @@ $ cargo build --target wasm32-wasi
 $ /path/to/wasmedge --dir .:. target/wasm32-wasi/debug/example.wasm
 ```
 
+You can find more examples in [wasmedge-db-examples](https://github.com/WasmEdge/wasmedge-db-examples/tree/main/anna).
+
 ## Attribution
 
 Many code of this driver is derived from [anna-rs].
