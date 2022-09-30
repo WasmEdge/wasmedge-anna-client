@@ -1,6 +1,13 @@
-# wasmedge-anna-client
+# anna-rs client for WebAssembly
 
-**wasmedge-anna-client** is a Rust client for [anna-rs] based on [Tokio for WasmEdge](https://github.com/WasmEdge/tokio/tree/wasmedge). It communicates with Anna routing nodes and KVS nodes via vanilla TCP connections instead of Zenoh.
+**wasmedge-anna-client** is a Rust client for [anna-rs] based on 
+[Tokio for WasmEdge](https://github.com/WasmEdge/tokio). 
+It communicates with [anna-rs] routing nodes and KVS nodes via vanilla 
+TCP connections instead of Zenoh.
+
+The **wasmedge-anna-client** can be compiled into
+WebAssembly. The WebAssembly app can run inside the [WasmEdge Runtime](https://github.com/WasmEdge/WasmEdge#readme)
+as a lightweight and secure alternative to natively compiled apps in Linux container.
 
 [anna-rs]: https://github.com/essa-project/anna-rs
 
