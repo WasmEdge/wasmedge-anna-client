@@ -13,6 +13,15 @@ async fn main() -> eyre::Result<()> {
         timeout: Duration::from_secs(10),
     })?;
 
+    test_put_get_lww(&mut client).await?;
+    test_transaction(&mut client).await?;
+
+    Ok(())
+}
+
+async fn test_put_get_lww(client: &mut Client) -> eyre::Result<()> {
+    println!("test_put_get_lww");
+
     // put the value
     let time = format!("{}", chrono::Utc::now());
     client.put_lww("time".into(), time.into()).await?;
@@ -25,6 +34,24 @@ async fn main() -> eyre::Result<()> {
     let bytes = client.get_lww("time".into()).await?;
     let value = String::from_utf8(bytes)?;
     println!("Successfully GET `time`: {}", value);
+
+    Ok(())
+}
+
+async fn test_transaction(client: &mut Client) -> eyre::Result<()> {
+    println!("test_transaction");
+
+    let mut tx = client.begin_transaction();
+    let time = format!("{}", chrono::Utc::now());
+    tx.put("time".into(), time.into()).await?;
+    let bytes = tx.get("time".into()).await?;
+    let value = String::from_utf8(bytes)?;
+    println!("Successfully GET `time` in transaction: {}", value);
+    tx.commit().await?;
+
+    let bytes = client.get_lww("time".into()).await?;
+    let value = String::from_utf8(bytes)?;
+    println!("Successfully GET `time` after transaction: {}", value);
 
     Ok(())
 }
