@@ -30,9 +30,10 @@ use crate::{
     topics::{ClientThread, KvsThread, RoutingThread},
 };
 
-use self::client_request::ClientRequest;
+use self::{client_request::ClientRequest, transaction::ReadCommittedTransaction};
 
 mod client_request;
+mod transaction;
 
 /// Configuration for [`Client`].
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Serialize, Deserialize)]
@@ -396,6 +397,11 @@ impl Client {
             .into_lww()?
             .into_revealed()
             .into_value())
+    }
+
+    /// Begin a transaction that satisfies *read committed* isolation level.
+    pub fn begin_transaction(&mut self) -> ReadCommittedTransaction {
+        ReadCommittedTransaction::new(self)
     }
 
     /// Try to put a set value with the given key.
