@@ -4,7 +4,7 @@ use anna_api::ClientKey;
 
 use crate::ClientConfig;
 
-use self::convert::ToAnnaValue;
+use self::convert::{FromAnnaValue, ToAnnaValue};
 
 mod convert;
 
@@ -32,11 +32,13 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub async fn get<K>(&mut self, key: K) -> eyre::Result<Vec<u8>>
+    pub async fn get<K, V>(&mut self, key: K) -> eyre::Result<V>
     where
         K: Into<ClientKey>,
+        V: FromAnnaValue,
     {
-        self.client.get_lww(key.into()).await
+        let value = self.client.get_lww(key.into()).await?;
+        V::from_anna_value(&value)
     }
 
     pub async fn set<K, V>(&mut self, key: K, value: V) -> eyre::Result<()>
