@@ -33,6 +33,7 @@ use crate::{
 use self::{client_request::ClientRequest, transaction::ReadCommittedTransaction};
 
 mod client_request;
+pub mod redis_like;
 mod transaction;
 
 /// Configuration for [`Client`].
