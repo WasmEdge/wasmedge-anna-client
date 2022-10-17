@@ -1,57 +1,71 @@
 use std::time::Duration;
 
-use wasmedge_anna_client::{Client, ClientConfig};
+use wasmedge_anna_client::{redis_like, Client, ClientConfig};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> eyre::Result<()> {
     set_up_logger()?;
 
-    let mut client = Client::new(ClientConfig {
+    let config = ClientConfig {
         routing_ip: "127.0.0.1".parse().unwrap(),
         routing_port_base: 12340,
         routing_threads: 1,
         timeout: Duration::from_secs(10),
-    })?;
+    };
 
-    test_put_get_lww(&mut client).await?;
-    test_transaction(&mut client).await?;
+    test_put_get_lww(config.clone()).await?;
+    test_transaction(config.clone()).await?;
+    test_redis_like_client(config).await?;
 
     Ok(())
 }
 
-async fn test_put_get_lww(client: &mut Client) -> eyre::Result<()> {
-    println!("test_put_get_lww");
+async fn test_put_get_lww(config: ClientConfig) -> eyre::Result<()> {
+    log::info!("test_put_get_lww");
 
-    // put the value
+    let mut client = Client::new(config)?;
+
     let time = format!("{}", chrono::Utc::now());
     client.put_lww("time".into(), time.into()).await?;
-    println!("Successfully PUT `time`");
+    log::info!("Successfully PUT `time`");
 
-    // sleep 1 second
-    tokio::time::sleep(Duration::from_secs(1)).await;
-
-    // get the value
     let bytes = client.get_lww("time".into()).await?;
     let value = String::from_utf8(bytes)?;
-    println!("Successfully GET `time`: {}", value);
+    log::info!("Successfully GET `time`: {}", value);
 
     Ok(())
 }
 
-async fn test_transaction(client: &mut Client) -> eyre::Result<()> {
-    println!("test_transaction");
+async fn test_transaction(config: ClientConfig) -> eyre::Result<()> {
+    log::info!("test_transaction");
+
+    let mut client = Client::new(config)?;
 
     let mut tx = client.begin_transaction();
     let time = format!("{}", chrono::Utc::now());
     tx.put("time".into(), time.into()).await?;
     let bytes = tx.get("time".into()).await?;
     let value = String::from_utf8(bytes)?;
-    println!("Successfully GET `time` in transaction: {}", value);
+    log::info!("Successfully GET `time` in transaction: {}", value);
     tx.commit().await?;
 
     let bytes = client.get_lww("time".into()).await?;
     let value = String::from_utf8(bytes)?;
-    println!("Successfully GET `time` after transaction: {}", value);
+    log::info!("Successfully GET `time` after transaction: {}", value);
+
+    Ok(())
+}
+
+async fn test_redis_like_client(config: ClientConfig) -> eyre::Result<()> {
+    log::info!("test_redis_like_client");
+
+    let client = redis_like::Client::open(config)?;
+    let mut con = client.get_async_connection().await?;
+    con.set("my_key", 42i32).await?;
+
+    let val: i32 = con.get("my_key").await?;
+    assert_eq!(val, 42i32);
+    log::info!("Successfully GET `my_key` in redis-like client: {}", val);
 
     Ok(())
 }
