@@ -13,8 +13,8 @@ async fn main() -> eyre::Result<()> {
         timeout: Duration::from_secs(10),
     };
 
-    test_put_get_lww(config.clone()).await?;
-    test_transaction(config.clone()).await?;
+    // test_put_get_lww(config.clone()).await?;
+    // test_transaction(config.clone()).await?;
     test_redis_like_client(config).await?;
 
     Ok(())
@@ -65,7 +65,14 @@ async fn test_redis_like_client(config: ClientConfig) -> eyre::Result<()> {
 
     let val: i32 = con.get("my_key").await?;
     assert_eq!(val, 42i32);
-    log::info!("Successfully GET `my_key` in redis-like client: {}", val);
+
+    con.set_nx("my_key", "should not be set").await?;
+    let val: i32 = con.get("my_key").await?;
+    assert_eq!(val, 42i32);
+
+    con.set_nx("hello", "world").await?;
+    let val: String = con.get("hello").await?;
+    assert_eq!(val, "world");
 
     Ok(())
 }
