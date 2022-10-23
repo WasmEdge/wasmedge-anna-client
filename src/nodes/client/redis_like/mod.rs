@@ -1,6 +1,6 @@
 //! Provides Redis-like [`Client`], [`Connection`] and operations, etc.
 
-use anna_api::ClientKey;
+use anna_api::{AnnaError, ClientKey};
 
 use crate::ClientConfig;
 
@@ -32,6 +32,7 @@ pub struct Connection {
 }
 
 impl Connection {
+    /// GET key
     pub async fn get<K, V>(&mut self, key: K) -> eyre::Result<V>
     where
         K: Into<ClientKey>,
@@ -41,11 +42,34 @@ impl Connection {
         V::from_anna_value(&value)
     }
 
+    /// SET key value
     pub async fn set<K, V>(&mut self, key: K, value: V) -> eyre::Result<()>
     where
         K: Into<ClientKey>,
         V: ToAnnaValue,
     {
         self.client.put_lww(key.into(), value.to_anna_value()).await
+    }
+
+    /// SETNX key value
+    pub async fn set_nx<K, V>(&mut self, key: K, value: V) -> eyre::Result<()>
+    where
+        K: Into<ClientKey>,
+        V: ToAnnaValue,
+    {
+        let key = key.into();
+        let mut tx = self.client.begin_transaction();
+        let res = tx.get(key.clone()).await;
+        if res.is_ok() {
+            // exists
+            return Ok(());
+        }
+        let err_report = res.err().unwrap();
+        if let Some(AnnaError::KeyDoesNotExist) = err_report.downcast_ref() {
+            tx.put(key, value.to_anna_value()).await?;
+            tx.commit().await
+        } else {
+            Err(err_report)
+        }
     }
 }
