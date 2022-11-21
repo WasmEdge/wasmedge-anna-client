@@ -1,5 +1,7 @@
 //! Provides Redis-like [`Client`], [`Connection`] and operations, etc.
 
+use std::collections::HashSet;
+
 use anna_api::{AnnaError, ClientKey};
 
 use crate::ClientConfig;
@@ -71,5 +73,21 @@ impl Connection {
         } else {
             Err(err_report)
         }
+    }
+
+    /// SGET key
+    pub async fn s_get<K>(&mut self, key: K) -> eyre::Result<HashSet<Vec<u8>>>
+    where
+        K: Into<ClientKey>,
+    {
+        self.client.get_set(key.into()).await
+    }
+
+    /// SSET key value
+    pub async fn s_set<K>(&mut self, key: K, value: HashSet<Vec<u8>>) -> eyre::Result<()>
+    where
+        K: Into<ClientKey>,
+    {
+        self.client.put_set(key.into(), value).await
     }
 }

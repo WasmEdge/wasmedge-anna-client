@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use wasmedge_anna_client::{redis_like, Client, ClientConfig};
 
@@ -20,6 +20,7 @@ async fn main() -> eyre::Result<()> {
     Ok(())
 }
 
+#[allow(unused)]
 async fn test_put_get_lww(config: ClientConfig) -> eyre::Result<()> {
     log::info!("test_put_get_lww");
 
@@ -36,6 +37,7 @@ async fn test_put_get_lww(config: ClientConfig) -> eyre::Result<()> {
     Ok(())
 }
 
+#[allow(unused)]
 async fn test_transaction(config: ClientConfig) -> eyre::Result<()> {
     log::info!("test_transaction");
 
@@ -56,6 +58,7 @@ async fn test_transaction(config: ClientConfig) -> eyre::Result<()> {
     Ok(())
 }
 
+#[allow(unused)]
 async fn test_redis_like_client(config: ClientConfig) -> eyre::Result<()> {
     log::info!("test_redis_like_client");
 
@@ -73,6 +76,16 @@ async fn test_redis_like_client(config: ClientConfig) -> eyre::Result<()> {
     con.set_nx("hello", "world").await?;
     let val: String = con.get("hello").await?;
     assert_eq!(val, "world");
+
+    let hash_set = {
+        let mut set = HashSet::new();
+        set.insert(b"hello".to_vec());
+        set.insert(b"world".to_vec());
+        set
+    };
+    con.s_set("hash_set_key", hash_set.clone()).await?;
+    let val = con.s_get("hash_set_key").await?;
+    assert_eq!(val, hash_set);
 
     Ok(())
 }

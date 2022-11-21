@@ -22,3 +22,7 @@ tokio_wasi = { version = "1.21", features = [
     "macros",
     "io-util",
 ] }
+chrono = { version = "=0.4.19" }
+
+[workspace]
+members = ["example"]
