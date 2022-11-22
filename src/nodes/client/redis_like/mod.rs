@@ -83,8 +83,8 @@ impl Connection {
         self.client.get_set(key.into()).await
     }
 
-    /// SSET key value
-    pub async fn s_set<K>(&mut self, key: K, value: HashSet<Vec<u8>>) -> eyre::Result<()>
+    /// SADD key value
+    pub async fn s_add<K>(&mut self, key: K, value: HashSet<Vec<u8>>) -> eyre::Result<()>
     where
         K: Into<ClientKey>,
     {
