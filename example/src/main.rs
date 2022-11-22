@@ -77,15 +77,19 @@ async fn test_redis_like_client(config: ClientConfig) -> eyre::Result<()> {
     let val: String = con.get("hello").await?;
     assert_eq!(val, "world");
 
-    let hash_set = {
-        let mut set = HashSet::new();
-        set.insert(b"hello".to_vec());
-        set.insert(b"world".to_vec());
-        set
-    };
-    con.s_set("hash_set_key", hash_set.clone()).await?;
+    let mut hash_set1 = HashSet::new();
+    hash_set1.insert(b"hello".to_vec());
+    hash_set1.insert(b"world".to_vec());
+    con.s_add("hash_set_key", hash_set1.clone()).await?;
+
+    let mut hash_set2 = HashSet::new();
+    hash_set2.insert(b"anna".to_vec());
+    con.s_add("hash_set_key", hash_set2.clone()).await?;
+
     let val = con.s_get("hash_set_key").await?;
-    assert_eq!(val, hash_set);
+
+    hash_set1.extend(hash_set2);
+    assert_eq!(val, hash_set1);
 
     Ok(())
 }
