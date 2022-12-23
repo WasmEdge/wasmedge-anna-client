@@ -19,7 +19,7 @@ pub async fn send_tcp_message(
     message: &TcpMessage,
     stream_tx: &mut tcp::OwnedWriteHalf,
 ) -> eyre::Result<()> {
-    let serialized = serde_json::to_vec(&message).context("failed to serialize tcp message")?;
+    let serialized = rmp_serde::to_vec(&message).context("failed to serialize tcp message")?;
     let len = (serialized.len() as u64).to_le_bytes();
     stream_tx
         .write_all(&len)
@@ -67,7 +67,7 @@ pub async fn receive_tcp_message(
             return Err(eyre::Error::new(err).wrap_err("failed to read message"));
         }
     }
-    let res = serde_json::from_slice(&buf)
+    let res = rmp_serde::from_slice(&buf)
         .with_context(|| {
             format!(
                 "failed to deserialize message: `{}`",

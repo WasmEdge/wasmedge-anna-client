@@ -21,56 +21,7 @@
 //! the [`ClientNode::run_interactive`][nodes::ClientNode::run_interactive] method for a full
 //! list of supported commands, including background information on the used lattice types.
 
-pub use anna_api::{lattice, AnnaError, ClientKey};
-use eyre::anyhow;
-use messages::Tier;
-use metadata::MetadataKey;
+pub use anna_api::*;
 
 pub mod nodes;
 pub use nodes::*;
-
-pub mod messages;
-pub mod metadata;
-pub mod store;
-pub mod topics;
-
-/// List of all known [`Tier`]s (except the `Routing` tier).
-pub const ALL_TIERS: &[Tier] = &[Tier::Memory, Tier::Disk];
-
-/// The key type used in the key-value store.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, serde::Serialize, serde::Deserialize)]
-pub enum Key {
-    /// A key supplied by a [`ClientNode`][nodes::ClientNode].
-    Client(ClientKey),
-    /// Used to store internal metadata.
-    Metadata(MetadataKey),
-}
-
-impl From<MetadataKey> for Key {
-    fn from(key: MetadataKey) -> Self {
-        Self::Metadata(key)
-    }
-}
-
-impl From<ClientKey> for Key {
-    fn from(key: ClientKey) -> Self {
-        Self::Client(key)
-    }
-}
-
-impl<'a> From<&'a ClientKey> for Key {
-    fn from(key: &'a ClientKey) -> Self {
-        Self::Client(key.clone())
-    }
-}
-
-impl std::convert::TryFrom<Key> for ClientKey {
-    type Error = eyre::Error;
-
-    fn try_from(value: Key) -> Result<Self, Self::Error> {
-        match value {
-            Key::Metadata(_) => Err(anyhow!("key is a metadata key instead of a client key")),
-            Key::Client(key) => Ok(key),
-        }
-    }
-}

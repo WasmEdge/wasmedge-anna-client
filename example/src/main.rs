@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 use wasmedge_anna_client::{redis_like, Client, ClientConfig};
 
@@ -13,13 +16,14 @@ async fn main() -> eyre::Result<()> {
         timeout: Duration::from_secs(10),
     };
 
-    // test_put_get_lww(config.clone()).await?;
-    // test_transaction(config.clone()).await?;
+    test_put_get_lww(config.clone()).await?;
+    test_transaction(config.clone()).await?;
     test_redis_like_client(config).await?;
 
     Ok(())
 }
 
+#[allow(unused)]
 async fn test_put_get_lww(config: ClientConfig) -> eyre::Result<()> {
     log::info!("test_put_get_lww");
 
@@ -36,6 +40,7 @@ async fn test_put_get_lww(config: ClientConfig) -> eyre::Result<()> {
     Ok(())
 }
 
+#[allow(unused)]
 async fn test_transaction(config: ClientConfig) -> eyre::Result<()> {
     log::info!("test_transaction");
 
@@ -43,8 +48,8 @@ async fn test_transaction(config: ClientConfig) -> eyre::Result<()> {
 
     let mut tx = client.begin_transaction();
     let time = format!("{}", chrono::Utc::now());
-    tx.put("time".into(), time.into()).await?;
-    let bytes = tx.get("time".into()).await?;
+    tx.put_lww("time".into(), time.into()).await?;
+    let bytes = tx.get_lww("time".into()).await?;
     let value = String::from_utf8(bytes)?;
     log::info!("Successfully GET `time` in transaction: {}", value);
     tx.commit().await?;
@@ -56,6 +61,7 @@ async fn test_transaction(config: ClientConfig) -> eyre::Result<()> {
     Ok(())
 }
 
+#[allow(unused)]
 async fn test_redis_like_client(config: ClientConfig) -> eyre::Result<()> {
     log::info!("test_redis_like_client");
 
@@ -74,6 +80,42 @@ async fn test_redis_like_client(config: ClientConfig) -> eyre::Result<()> {
     let val: String = con.get("hello").await?;
     assert_eq!(val, "world");
 
+    let mut hash_set1 = HashSet::new();
+    hash_set1.insert(b"hello".to_vec());
+    hash_set1.insert(b"world".to_vec());
+    con.s_add("hash_set_key", hash_set1.clone()).await?;
+
+    let mut hash_set2 = HashSet::new();
+    hash_set2.insert(b"anna".to_vec());
+    con.s_add("hash_set_key", hash_set2.clone()).await?;
+
+    let val = con.s_get("hash_set_key").await?;
+
+    hash_set1.extend(hash_set2);
+    assert_eq!(val, hash_set1);
+
+    let mut hash_map1 = HashMap::new();
+    hash_map1.insert("key1".to_string(), b"value1".to_vec());
+    hash_map1.insert("key2".to_string(), b"value2".to_vec());
+    con.h_mset("hash_map_key", hash_map1.clone()).await?;
+
+    let mut hash_map2 = HashMap::new();
+    hash_map2.insert("key3".to_string(), b"value3".to_vec());
+    con.h_mset("hash_map_key", hash_map2.clone()).await?;
+
+    let val = con.h_getall("hash_map_key").await?;
+
+    hash_map1.extend(hash_map2);
+    assert_eq!(val, hash_map1);
+
+    let val = con.inc("inc_key", 10).await?;
+    assert_eq!(val, 10);
+    let val = con.inc("inc_key", 0).await?;
+    assert_eq!(val, 10);
+    let val = con.inc("inc_key", -15).await?;
+    assert_eq!(val, -5);
+
+    log::info!("Success!");
     Ok(())
 }
 
