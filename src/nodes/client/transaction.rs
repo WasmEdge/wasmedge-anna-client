@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use anna_api::{
-    lattice::{last_writer_wins::Timestamp, LastWriterWinsLattice},
-    ClientKey, LatticeValue,
-};
+use anna_api::ClientKey;
 
 use crate::Client;
 
@@ -20,7 +17,7 @@ impl<'a> ReadCommittedTransaction<'a> {
         }
     }
 
-    pub async fn get(&mut self, key: ClientKey) -> eyre::Result<Vec<u8>> {
+    pub async fn get_lww(&mut self, key: ClientKey) -> eyre::Result<Vec<u8>> {
         if let Some(value) = self.write_buffer.get(&key) {
             Ok(value.clone())
         } else {
@@ -28,20 +25,14 @@ impl<'a> ReadCommittedTransaction<'a> {
         }
     }
 
-    pub async fn put(&mut self, key: ClientKey, value: Vec<u8>) -> eyre::Result<()> {
+    pub async fn put_lww(&mut self, key: ClientKey, value: Vec<u8>) -> eyre::Result<()> {
         self.write_buffer.insert(key, value);
         Ok(())
     }
 
     pub async fn commit(self) -> eyre::Result<()> {
-        let commit_time = Timestamp::now();
         for (key, value) in self.write_buffer.into_iter() {
-            self.client
-                .put_lattice(
-                    key,
-                    LatticeValue::Lww(LastWriterWinsLattice::from_pair(commit_time, value)),
-                )
-                .await?;
+            self.client.put_lww(key, value).await?;
         }
         Ok(())
     }

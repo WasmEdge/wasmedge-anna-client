@@ -8,12 +8,8 @@ use std::{
 };
 
 use anna_api::{
-    lattice::{
-        causal::{MultiKeyCausalLattice, MultiKeyCausalPayload, VectorClock},
-        last_writer_wins::Timestamp,
-        LastWriterWinsLattice, Lattice, MapLattice, MaxLattice, SetLattice,
-    },
-    ClientKey, LatticeValue,
+    messages::{request::KeyOperation, response::ClientResponseValue},
+    ClientKey,
 };
 use eyre::{eyre, Context, ContextCompat};
 use futures::Future;
@@ -27,7 +23,7 @@ use tokio::{
 use crate::{
     messages::{AddressRequest, AddressResponse, Response, TcpMessage},
     nodes::{receive_tcp_message, send_tcp_message},
-    topics::{ClientThread, KvsThread, RoutingThread},
+    topics::{ClientThread, KvsThread},
 };
 
 use self::{client_request::ClientRequest, transaction::ReadCommittedTransaction};
@@ -54,7 +50,7 @@ pub struct Client {
     client_thread: ClientThread,
     routing_ip: IpAddr,
     routing_port_base: u16,
-    routing_threads: Vec<RoutingThread>,
+    routing_threads: u32,
     _timeout: Duration,
     next_request_id: u32,
     key_address_cache: HashMap<ClientKey, HashSet<KvsThread>>,
@@ -84,14 +80,12 @@ impl Client {
     pub fn new(config: ClientConfig) -> eyre::Result<Self> {
         assert!(config.routing_threads > 0);
         let client_thread = ClientThread::new(format!("client-{}", uuid::Uuid::new_v4()), 0);
-        let routing_threads: Vec<_> = (0..config.routing_threads)
-            .map(|i| RoutingThread::new(i))
-            .collect();
+
         Ok(Self {
             client_thread,
             routing_ip: config.routing_ip,
             routing_port_base: config.routing_port_base,
-            routing_threads,
+            routing_threads: config.routing_threads,
             _timeout: config.timeout,
             next_request_id: 1,
             kvs_tcp_address_cache: Default::default(),
@@ -116,21 +110,19 @@ impl Client {
         log::trace!("Making AddressRequest for key: {:?}", key);
         AddressRequest {
             request_id: self.gen_request_id(),
-            response_address: self.client_thread.address_response_topic().to_string(),
+            response_address: self
+                .client_thread
+                .address_response_topic("anna")
+                .to_string(),
             keys: vec![key],
         }
     }
 
-    fn make_request(&mut self, key: ClientKey, value: Option<LatticeValue>) -> ClientRequest {
-        log::trace!(
-            "Making ClientRequest for key: {:?}, value: {:?}",
-            key,
-            value
-        );
+    fn make_request(&mut self, operation: KeyOperation) -> ClientRequest {
+        log::trace!("Making ClientRequest for operation: {:?}", operation);
         ClientRequest {
-            key,
-            put_value: value,
-            response_address: self.client_thread.response_topic().to_string(),
+            operation,
+            response_address: self.client_thread.response_topic("anna").to_string(),
             request_id: self.gen_request_id(),
             address_cache_size: HashMap::new(),
             timestamp: Instant::now(),
@@ -158,23 +150,21 @@ impl Client {
         async { rx.await.map_err(Into::into) }
     }
 
-    fn get_routing_thread(&self) -> RoutingThread {
+    fn get_routing_thread_id(&self) -> u32 {
+        use rand::prelude::*;
+
         let mut rng = rand::thread_rng();
-        let thread = self
-            .routing_threads
-            .iter()
-            .choose(&mut rng)
-            .unwrap()
-            .clone();
-        log::trace!("Selected routing thread: {:?}", thread);
-        thread
+
+        let thread_id = (0..self.routing_threads).choose(&mut rng).unwrap_or(0);
+        log::trace!("Selected routing thread_id: {:?}", thread_id);
+        thread_id
     }
 
     fn get_routing_tcp_address(&self) -> SocketAddr {
-        let routing_thread = self.get_routing_thread();
+        let routing_thread_id = self.get_routing_thread_id();
         SocketAddr::new(
             self.routing_ip,
-            self.routing_port_base + routing_thread.thread_id as u16,
+            self.routing_port_base + routing_thread_id as u16,
         )
     }
 
@@ -340,8 +330,9 @@ impl Client {
 
     async fn send_request(&mut self, request: ClientRequest) -> eyre::Result<Response> {
         let request_id = request.request_id.clone();
+        let key = request.operation.key();
         let addr = self
-            .get_key_tcp_address(&request.key)
+            .get_key_tcp_address(&key)
             .await?
             .context("fail to get tcp address of the kvs thread the key locates")?;
         let promise = self.make_response_promise(request_id).await;
@@ -350,30 +341,18 @@ impl Client {
         promise.await.map_err(Into::into)
     }
 
-    async fn put_lattice(&mut self, key: ClientKey, value: LatticeValue) -> eyre::Result<()> {
-        let request = self.make_request(key.clone(), Some(value));
-        let response = self.send_request(request).await?;
-        // TODO: handle error
-        assert!(response.error.is_ok());
-        assert!(response.tuples.len() == 1);
-        assert!(response.tuples[0].error.is_none());
-        Ok(())
-    }
-
-    async fn get_lattice(&mut self, key: ClientKey) -> eyre::Result<LatticeValue> {
-        let request = self.make_request(key.clone(), None);
-        let response = self.send_request(request).await?;
+    async fn get_lattice(&mut self, key: ClientKey) -> eyre::Result<ClientResponseValue> {
+        let request = self.make_request(KeyOperation::Get(key));
+        let mut response = self.send_request(request).await?;
 
         // TODO: handle cache invalidation and other special errors
-        if response.error.is_err() {
-            return Err(response.error.unwrap_err().into());
-        }
+        response.error?;
 
         let response_tuple = response
             .tuples
-            .get(0)
-            .cloned()
+            .pop()
             .ok_or_else(|| eyre!("response has no tuples"))?;
+
         if let Some(error) = response_tuple.error {
             Err(error.into())
         } else {
@@ -383,21 +362,20 @@ impl Client {
 
     /// Try to put a *last writer wins* value with the given key.
     pub async fn put_lww(&mut self, key: ClientKey, value: Vec<u8>) -> eyre::Result<()> {
-        self.put_lattice(
-            key,
-            LatticeValue::Lww(LastWriterWinsLattice::from_pair(Timestamp::now(), value)),
-        )
-        .await
+        let request = self.make_request(KeyOperation::Put(key, value));
+        let response = self.send_request(request).await?;
+        response.error?;
+        Ok(())
     }
 
     /// Try to get a *last writer wins* value with the given key.
     pub async fn get_lww(&mut self, key: ClientKey) -> eyre::Result<Vec<u8>> {
-        Ok(self
-            .get_lattice(key)
-            .await?
-            .into_lww()?
-            .into_revealed()
-            .into_value())
+        let value = self.get_lattice(key).await?;
+
+        match value {
+            ClientResponseValue::Bytes(bytes) => Ok(bytes),
+            other => Err(eyre::anyhow!("expected bytes, got `{:?}`", other)),
+        }
     }
 
     /// Begin a transaction that satisfies *read committed* isolation level.
@@ -405,56 +383,66 @@ impl Client {
         ReadCommittedTransaction::new(self)
     }
 
-    /// Try to put a set value with the given key.
-    pub async fn put_set(&mut self, key: ClientKey, set: HashSet<Vec<u8>>) -> eyre::Result<()> {
-        self.put_lattice(key, LatticeValue::Set(SetLattice::new(set)))
-            .await
+    /// Try to merge a set value with the given key.
+    pub async fn add_set(&mut self, key: ClientKey, set: HashSet<Vec<u8>>) -> eyre::Result<()> {
+        let request = self.make_request(KeyOperation::SetAdd(key, set));
+        let response = self.send_request(request).await?;
+        response.error?;
+        Ok(())
     }
 
     /// Try to get a set value with the given key.
     pub async fn get_set(&mut self, key: ClientKey) -> eyre::Result<HashSet<Vec<u8>>> {
-        Ok(self.get_lattice(key).await?.into_set()?.into_revealed())
+        let value = self.get_lattice(key).await?;
+
+        match value {
+            ClientResponseValue::Set(set) => Ok(set),
+            other => Err(eyre::anyhow!("expected Set lattice, got `{:?}`", other)),
+        }
     }
 
-    /// Try to put a *multi-key causal* value with the given key.
-    pub async fn put_causal(&mut self, key: ClientKey, value: Vec<u8>) -> eyre::Result<()> {
-        // construct a test client id - version pair
-        let vector_clock = {
-            let mut vector_clock = VectorClock::default();
-            vector_clock.insert("test".into(), MaxLattice::new(1));
-            vector_clock
-        };
-        // construct one test dependencies
-        let dependencies = {
-            let mut dependencies = MapLattice::default();
-            dependencies.insert("dep1".into(), {
-                let mut clock = VectorClock::default();
-                clock.insert("test1".into(), MaxLattice::new(1));
-                clock
-            });
-            dependencies
-        };
-        // populate the value
-        let value = {
-            let mut map = SetLattice::default();
-            map.insert(value);
-            map
-        };
-        let mkcp = MultiKeyCausalPayload::new(vector_clock, dependencies, value);
-        let mkcl = MultiKeyCausalLattice::new(mkcp);
-
-        self.put_lattice(key, LatticeValue::MultiCausal(mkcl)).await
-    }
-
-    /// Try to get a *multi-key causal* value with the given key.
-    pub async fn get_causal(
+    /// Try to merge a hashmap value with the given key.
+    pub async fn add_map(
         &mut self,
         key: ClientKey,
-    ) -> eyre::Result<MultiKeyCausalPayload<SetLattice<Vec<u8>>>> {
-        Ok(self
-            .get_lattice(key)
-            .await?
-            .into_multi_causal()?
-            .into_revealed())
+        map: HashMap<String, Vec<u8>>,
+    ) -> eyre::Result<()> {
+        let request = self.make_request(KeyOperation::MapAdd(key, map));
+        let response = self.send_request(request).await?;
+        response.error?;
+        Ok(())
+    }
+
+    /// Try to get a hashmap value with the given key.
+    pub async fn get_map(&mut self, key: ClientKey) -> eyre::Result<HashMap<String, Vec<u8>>> {
+        let value = self.get_lattice(key).await?;
+
+        match value {
+            ClientResponseValue::Map(set) => Ok(set),
+            other => Err(eyre::anyhow!("expected Set lattice, got `{:?}`", other)),
+        }
+    }
+
+    /// Try to Increase int value with the given key.
+    pub async fn inc(&mut self, key: ClientKey, value: i64) -> eyre::Result<i64> {
+        let request = self.make_request(KeyOperation::Inc(key, value));
+        let mut response = self.send_request(request).await?;
+        // TODO: handle cache invalidation and other special errors
+        response.error?;
+
+        let response_tuple = response
+            .tuples
+            .pop()
+            .ok_or_else(|| eyre!("response has no tuples"))?;
+
+        if let Some(error) = response_tuple.error {
+            Err(error.into())
+        } else {
+            let value = response_tuple.lattice.context("expected lattice value")?;
+            match value {
+                ClientResponseValue::Int(v) => Ok(v),
+                other => Err(eyre::anyhow!("expected Set lattice, got `{:?}`", other)),
+            }
+        }
     }
 }
